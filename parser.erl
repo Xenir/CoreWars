@@ -1,17 +1,28 @@
--module(pro).
--compile([export_all]).
-%% string czy atom...
+-module(parser).
+-export([parse_file/1, default_instr/0]).
 -record(instr, {opcode = "dat", opmod = "f", amod = '$', a = 0, bmod = '$', b = 0}).
 
+%% ok
 opcodes() ->
 	["dat", "mov", "add", "sub", "mul", "div", "mod", "jmp", "jmz", "jmn", "djn", "spl", "cmp", "seq", "sne", "slt", "ldp", "stp", "nop"].
-	
+
+%% ok
 instr_mod() ->
 	["a", "b", "ab", "ba", "f", "x", "i"].
-	
-addresinng_modes() ->
+
+%% ok
+addressing_modes() ->
 	["#", "$", "@", "*", "{", "}", "<", ">"].
 
+%% ok
+default_addresing_mode() ->
+	"$".
+
+%% ok
+default_instr() ->
+	#instr{}.
+
+%% ok
 instructions() ->
 	[
 		#instr{opcode = "dat", opmod = "f", amod = '$', a = 0, bmod = '$', b = 0},
@@ -35,20 +46,16 @@ instructions() ->
 		#instr{opcode = "nop", opmod = "f", amod = '$', a = 0, bmod = '$', b = 0}
 	].
 
-elo() -> 
-	#instr{}.
-	
-write(A) ->
-	A#instr.opcode.
-	
-open(Filename) ->
+%% ok
+open_file(Filename) ->
 	case file:open(Filename, [read]) of
 		{ok, Fd} ->
 			Fd;
 		{error, Reason} ->
-			{error, Reason}
+			throw(Reason)
 	end.
-	
+
+%% ok
 read_line(Fd) ->
 	case io:get_line(Fd, "") of
 		eof ->
@@ -58,54 +65,101 @@ read_line(Fd) ->
 		Data ->
 			Data
 	end.
-	
-close(Fd) ->
+
+%% ok
+close_file(Fd) ->
 	file:close(Fd).
-	
+
+%% ok
 trim(String) ->
 	S1 = re:replace(String, "\n", "", [global, {return, list}]),
 	S2 = re:replace(S1, "\t", "", [global, {return, list}]),
 	string:strip(S2, both).
-	
+
+%% ok
+parse_line([]) ->
+	throw("Empty line");
+
+%% ok
 parse_line(Line) when is_list(Line) ->
 	L = string:to_lower(trim(Line)),
 	Tokens = string:tokens(L, " "),
-	Opcode = lists:nth(1, Tokens),
-	{Code, Mod} = parse_instruction(string:tokens(Opcode, "."));
-	%% dat, nop ignoruja a i b, jmp i spl ignoruja b
+	{Code, Mod} = parse_instruction(string:tokens(lists:nth(1, Tokens), ".")),
+	{Amod, A} = parse_field(lists:nth(2, Tokens)),
+	{Bmod, B} = parse_field(lists:nth(3, Tokens)),
+	create_instruction(Code, Mod, Amod, A, Bmod, B);
+
+%% ok
 parse_line(_) ->
-	error.
-	
+	throw("Not a string").
+
+%% ok
 parse_instruction([Opcode]) ->
 	case is_opcode(Opcode) of
 		true	-> {Opcode, element(3, lists:keyfind(Opcode, 2, instructions()))};
-		false	-> throw("Illegal opcode")
+		false	-> throw("Illegal opcode: " ++ Opcode)
 	end;
 
+%% ok
 parse_instruction([Opcode, Mod]) ->
 	case is_opcode(Opcode) of
 		true ->
 			case is_instr_mod(Mod) of
 				true 	-> {Opcode, Mod};
-				false	-> throw("Illegal instruction modifier")
+				false	-> throw("Illegal instruction modifier: " ++ Mod)
 			end;
 		false ->
-			throw("Illegal opcode")
+			throw("Illegal opcode: " ++ Opcode)
 	end.
-	
-%%check_instr_mod(Code) ->
+
+%% ok
+parse_field(Field) when is_list(Field) ->
+	First = string:substr(Field, 1, 1),
+	case is_addressing_mode(First) of
+		true ->
+			Data = string:substr(Field, 2),
+			Mode = First;
+		false ->
+			Data = Field,
+			Mode = default_addresing_mode()
+	end,
+	case string:to_integer(Data) of
+		{error, _} ->
+			throw("Cannot parse the addres: " + Field);
+		{Int, _} ->
+			{Mode, Int}
+	end.
+
+%% ok
 is_opcode(Code) ->
 	lists:member(Code, opcodes()).
-	
+
+%% ok
 is_instr_mod(Mod) ->
 	lists:member(Mod, instr_mod()).
-	
-%ge%t_instruction(Code) ->
-	%lists:keyfind(Code, 1, instructions()).
-	
 
+%% ok
+is_addressing_mode(Mode) ->
+	lists:member(Mode, addressing_modes()).
 
-%%sprawdzenie czy instruckja jest odpowiednia
-%%sparsowanie modyfikatora instrukcji
-%%sparsowanie modyfikatora A i wartości
-%%sprasowanie modyfikatora B i wartości
+%% ok
+create_instruction(Code, Mod, Amod, A, Bmod, B) ->
+	#instr{opcode = Code, opmod = Mod, amod = Amod, a = A, bmod = Bmod, b = B}.
+
+%% ok
+parse_file(Filename) ->
+	Fd = open_file(Filename),
+	Instructions = parse_file(Fd, []),
+	close_file(Fd),
+	Instructions.
+
+%% ok
+parse_file(Fd, Accum) ->
+	case read_line(Fd) of
+		[] ->
+			Accum;
+		{error, Reason} ->
+			throw(Reason);
+		Line ->
+			parse_file(Fd, Accum ++ [parse_line(Line)])
+	end.
