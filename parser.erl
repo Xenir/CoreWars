@@ -1,5 +1,5 @@
 -module(parser).
--export([parse_file/1, default_instr/0]).
+-export([parse_file/1, default_instr/0, extract_opcode/1, extract_opmod/1, extract_amod/1, extract_a/1, extract_bmod/1, extract_b/1, create_instr/6]).
 -record(instr, {opcode = "dat", opmod = "f", amod = '$', a = 0, bmod = '$', b = 0}).
 
 %% ok
@@ -87,7 +87,7 @@ parse_line(Line) when is_list(Line) ->
 	{Code, Mod} = parse_instruction(string:tokens(lists:nth(1, Tokens), ".")),
 	{Amod, A} = parse_field(lists:nth(2, Tokens)),
 	{Bmod, B} = parse_field(lists:nth(3, Tokens)),
-	create_instruction(Code, Mod, Amod, A, Bmod, B);
+	create_instr(Code, Mod, Amod, A, Bmod, B);
 
 %% ok
 parse_line(_) ->
@@ -143,7 +143,7 @@ is_addressing_mode(Mode) ->
 	lists:member(Mode, addressing_modes()).
 
 %% ok
-create_instruction(Code, Mod, Amod, A, Bmod, B) ->
+create_instr(Code, Mod, Amod, A, Bmod, B) ->
 	#instr{opcode = Code, opmod = Mod, amod = Amod, a = A, bmod = Bmod, b = B}.
 
 %% ok
@@ -163,3 +163,21 @@ parse_file(Fd, Accum) ->
 		Line ->
 			parse_file(Fd, Accum ++ [parse_line(Line)])
 	end.
+	
+extract_opcode(Instr) ->
+	Instr#instr.opcode.
+	
+extract_opmod(Instr) ->
+	Instr#instr.opmod.
+	
+extract_amod(Instr) ->
+	Instr#instr.amod.
+	
+extract_a(Instr) ->
+	Instr#instr.a.
+	
+extract_bmod(Instr) ->
+	Instr#instr.bmod.
+	
+extract_b(Instr) ->
+	Instr#instr.b.

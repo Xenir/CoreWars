@@ -1,6 +1,7 @@
 -module(server).
 -compile([export_all]).
 -record(cell, {instr = parser:default_instr(), warrior = 0}).
+-record(warrior, {number = 0, pid}).
 
 %% ok
 min_dist() ->
@@ -19,6 +20,10 @@ core_chars() ->
 	"-",	% 7th warrior
 	"&"		% 8th warrior
 	].
+	
+%% ok
+create_cell(Instr, WarriorNum) ->
+	#cell{instr = Instr, warrior = WarriorNum}.
 
 %% ok
 maximum_warriors() ->
@@ -32,48 +37,75 @@ init() ->
 init(Size) ->
 	spawn(?MODULE, loop, [lists:duplicate(Size, #cell{}), []]).
 
-%% testowane
+%% odkomentowac
 loop(Core, Warriors) ->
 	receive
 		{Pid, load_warrior, Filename} ->
-			add_warrior(Core, parser:parse_file(Filename)),
-			Pid ! {self(), ok}
-			%try parser:parse_file(Filename) of
-			%	Instructions ->
-			%		try add_warrior(Core, Instructions) of
-			%			{NewCore, WarriorPid} ->
-			%				Pid ! {self(), ok},
-			%				loop(NewCore, [WarriorPid | Warriors])
-			%		catch
-			%			Reason ->
-			%				Pid ! {self(), Reason},
-			%				loop(Core, Warriors)
-			%		end
-			%catch
-			%	Reason ->
-			%		Pid ! {self(), Reason},
-			%		loop(Core, Warriors)
-			%end
+			io:format("sPrzyszlo~n"),
+			io:format("sposzlo~n"),
+			try parser:parse_file(Filename) of
+				Instructions ->
+					try add_warrior(Core, Instructions) of
+						{NewCore}->%, WarriorPid} ->
+							Pid ! {self(), ok},
+							loop(NewCore, Warriors)%[WarriorPid | Warriors])
+					catch
+						Reason ->
+							Pid ! {self(), Reason},
+							loop(Core, Warriors)
+					end
+			catch
+				Reason ->
+					Pid ! {self(), Reason},
+					loop(Core, Warriors)
+			end;
 
-		%{Pid, start} ->
+		{Pid, remove_warrior, WarriorNum} ->
+			W = delete_warrior(Warriors, WarriorNum),
+			Pid ! {self(), ok},
+			loop(Core, W);
+
+		{Pid, remove_all} ->
+			Pid ! {self(), ok},
+			loop(Core, [])
 
 	end.
 
-%% testowane
+%% ok
 load_warrior(Pid, Filename)	->
 	Pid ! {self(), load_warrior, Filename},
 	receive
-		{_, Message} ->
+		{Pid, Message} ->
+			Message
+	end.
+
+%% do testow
+remove_warrior(Pid, WarriorNumber) when WarriorNumber > 0 ->
+	Pid ! {self(), remove_warrior, WarriorNumber},
+	receive
+		{Pid, Message} ->
+			Message
+	end.
+
+%% testowanie
+remove_all(Pid) ->
+	Pid ! {self(), remove_all},
+	receive
+		{Pid, Message} ->
 			Message
 	end.
 
 %% ok
 cell_to_char(Cell) ->
-	lists:nth(element(3, Cell) + 1, core_chars()).
+	lists:nth(extract_warrior(Cell) + 1, core_chars()).
 
 %% ok
 nth_cell(N, Core) ->
 	lists:nth(N rem length(Core) + 1, Core).
+	
+% ok
+extract_instr(Cell) ->
+	Cell#cell.instr.
 
 %% odkomentowac
 add_warrior(Core, Instructions) ->
@@ -86,9 +118,28 @@ add_warrior(Core, Instructions) ->
 			{add_warrior(Core, Instructions, Location, NewNumber)}%, spawn(warrior, loop, [Location])}
 	end.
 
+replace_cell(Core, N, NewCell) ->
+	subcore(Core, 1, N - 1) ++ [NewCell] ++ subcore(Core, N + 1, length(Core)).
+	
 %% ok
 add_warrior(Core, Instructions, Location, WarriorNumber) ->
 	subcore(Core, 1, Location - 1) ++ instructions_to_cells(Instructions, WarriorNumber) ++ subcore(Core, Location + length(Instructions), length(Core)).
+
+%% testowanie
+delete_warrior(Warriors, Number) when is_list(Warriors) ->
+	lists:reverse(delete_warrior(Warriors, Number, [])).
+	
+delete_warrior([], _, Accum) ->
+	Accum;
+	
+delete_warrior([Head = {warrior, Num, Pid} | Rest], Number, Accum) ->
+	case Num =:= Number of
+		false ->
+			delete_warrior(Rest, Number, [Head | Accum]);
+		true ->
+			Pid ! {self(), kill},
+			delete_warrior(Rest, Number, Accum)
+	end.
 
 %% ok
 instructions_to_cells(Instructions, WarriorNumber) ->
@@ -120,8 +171,12 @@ extract_warriors([], Accum) ->
 
 %% ok
 extract_warriors([CoreHead | CoreTail], Accum) ->
-	extract_warriors(CoreTail, [element(3, CoreHead) | Accum]).
+	extract_warriors(CoreTail, [extract_warrior(CoreHead) | Accum]).
 
+% ok
+extract_warrior(Cell) ->
+	Cell#cell.warrior.
+	
 %% ok
 new_warrior_location(Core, WarriorLength) ->
 	Location = random:uniform(length(Core) - WarriorLength + 1),
@@ -137,12 +192,12 @@ subcore(Core, Begin, End) ->
 	lists:sublist(Core, Begin, End - Begin + 1).
 
 %% ok
-scan_for_other_warriors(Core, Begin, End, Warrior) -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+scan_for_other_warriors(Core, Begin, End, Warrior) ->
 	lists:any(fun(Cell) -> Cell =/= Warrior end, extract_warriors(subcore(Core, Begin, End))).
 
 %% ok
 empty(Cell) ->
-	element(3, Cell) =:= 0.
+	extract_warrior(Cell) =:= 0.
 
 %% ok
 empty_space(Cell, Accum) ->
