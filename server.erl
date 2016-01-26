@@ -20,7 +20,7 @@ core_chars() ->
 	"-",	% 7th warrior
 	"&"		% 8th warrior
 	].
-	
+
 %% ok
 create_cell(Instr, WarriorNum) ->
 	#cell{instr = Instr, warrior = WarriorNum}.
@@ -99,10 +99,27 @@ remove_all(Pid) ->
 cell_to_char(Cell) ->
 	lists:nth(extract_warrior(Cell) + 1, core_chars()).
 
+write_cell(Cell) ->
+	io:format("~s", [cell_to_char(Cell)]).
+
+write_core(Core) ->
+	write_core(Core, 0).
+
+write_core([], _) ->
+	io:format("~n");
+
+write_core(Core, 80) ->
+	io:format("~n"),
+	write_core(Core, 0);
+
+write_core([Head | Tail], N) ->
+	write_cell(Head),
+	write_core(Tail, N + 1).
+
 %% ok
 nth_cell(N, Core) ->
 	lists:nth(N rem length(Core) + 1, Core).
-	
+
 % ok
 extract_instr(Cell) ->
 	Cell#cell.instr.
@@ -120,7 +137,7 @@ add_warrior(Core, Instructions) ->
 
 replace_cell(Core, N, NewCell) ->
 	subcore(Core, 1, N - 1) ++ [NewCell] ++ subcore(Core, N + 1, length(Core)).
-	
+
 %% ok
 add_warrior(Core, Instructions, Location, WarriorNumber) ->
 	subcore(Core, 1, Location - 1) ++ instructions_to_cells(Instructions, WarriorNumber) ++ subcore(Core, Location + length(Instructions), length(Core)).
@@ -128,10 +145,10 @@ add_warrior(Core, Instructions, Location, WarriorNumber) ->
 %% testowanie
 delete_warrior(Warriors, Number) when is_list(Warriors) ->
 	lists:reverse(delete_warrior(Warriors, Number, [])).
-	
+
 delete_warrior([], _, Accum) ->
 	Accum;
-	
+
 delete_warrior([Head = {warrior, Num, Pid} | Rest], Number, Accum) ->
 	case Num =:= Number of
 		false ->
@@ -176,7 +193,7 @@ extract_warriors([CoreHead | CoreTail], Accum) ->
 % ok
 extract_warrior(Cell) ->
 	Cell#cell.warrior.
-	
+
 %% ok
 new_warrior_location(Core, WarriorLength) ->
 	Location = random:uniform(length(Core) - WarriorLength + 1),

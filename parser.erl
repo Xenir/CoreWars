@@ -163,21 +163,21 @@ parse_file(Fd, Accum) ->
 		Line ->
 			parse_file(Fd, Accum ++ [parse_line(Line)])
 	end.
-	
+
 extract_opcode(Instr) ->
 	Instr#instr.opcode.
-	
+
 extract_opmod(Instr) ->
 	Instr#instr.opmod.
-	
+
 extract_amod(Instr) ->
 	Instr#instr.amod.
-	
+
 extract_a(Instr) ->
 	Instr#instr.a.
-	
+
 extract_bmod(Instr) ->
 	Instr#instr.bmod.
-	
+
 extract_b(Instr) ->
 	Instr#instr.b.
