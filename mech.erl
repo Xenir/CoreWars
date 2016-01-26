@@ -1,5 +1,5 @@
 -module(mech).
--export([execute/1]).
+-export([execute/2]).
 
 execute(Core, N) ->
 	case parser:extract_opcode(server:extract_instr(server:nth_cell(N, Core))) of
@@ -77,14 +77,14 @@ execute_mul(Core, N) ->
 execute_div(Core, N) ->
 	SAddr = get_source_address(Core, N),
 	DAddr = get_destination_address(Core, N),
-	{Status, Cell} = execute_arithm(server:nth_cell(SAddr, Core), server:nth_cell(DAddr, Core), fun(A, B) -> A div B end),
+	{Status, Cell} = execute_division(server:nth_cell(SAddr, Core), server:nth_cell(DAddr, Core), fun(A, B) -> A div B end),
 	NewCore = server:replace_cell(Core, DAddr, Cell),
 	{Status, "div", NewCore, N + 1}.
 
 execute_mod(Core, N) ->
 	SAddr = get_source_address(Core, N),
 	DAddr = get_destination_address(Core, N),
-	{Status, Cell} = execute_arithm(server:nth_cell(SAddr, Core), server:nth_cell(DAddr, Core), fun(A, B) -> A rem B end),
+	{Status, Cell} = execute_division(server:nth_cell(SAddr, Core), server:nth_cell(DAddr, Core), fun(A, B) -> A rem B end),
 	NewCore = server:replace_cell(Core, DAddr, Cell),
 	{Status, "mod", NewCore, N + 1}.
 
@@ -646,9 +646,6 @@ execute_lesser_skip(Source, Destination, N) ->
 			end
 	end,
 	{ok, Dest}.
-
-get_addresses(Core, N) ->
-	{get_source_address(Core, N), get_destination_address(Core, N)}.
 
 get_source_address(Core, N) ->
 	Cell = server:nth_cell(N, Core),

@@ -1,4 +1,4 @@
 ADD #4, 3
 MOV 2, @2
-JMP -2
+JMP -2, 0
 DAT #0, #0

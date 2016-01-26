@@ -39,16 +39,18 @@ init(Size) ->
 
 %% odkomentowac
 loop(Core, Warriors) ->
+	io:format("~n~n~n~s~n~n~n", ["loop"]),
 	receive
 		{Pid, load_warrior, Filename} ->
-			io:format("sPrzyszlo~n"),
-			io:format("sposzlo~n"),
+			io:format("przyszlo~n"),
 			try parser:parse_file(Filename) of
 				Instructions ->
+					io:format("sparsowane~n"),
 					try add_warrior(Core, Instructions) of
-						{NewCore}->%, WarriorPid} ->
+						{NewCore, Number, WarriorPid} ->
 							Pid ! {self(), ok},
-							loop(NewCore, Warriors)%[WarriorPid | Warriors])
+							io:format("wyslane~n"),
+							loop(NewCore, [#warrior{number = Number, pid = WarriorPid} | Warriors])
 					catch
 						Reason ->
 							Pid ! {self(), Reason},
@@ -67,17 +69,79 @@ loop(Core, Warriors) ->
 
 		{Pid, remove_all} ->
 			Pid ! {self(), ok},
-			loop(Core, [])
+			loop(Core, []);
+			
+		{Pid, start, Steps} ->
+			Pid ! {self(), launching},
+			{NCore, NWarriors} = start_battle(Core, Warriors, Steps),
+			loop(NCore, NWarriors);
+		
+		{Pid, stop} ->
+			Pid ! {self(), stopping}
 
 	end.
 
+run(Pid) ->
+	run(Pid, 8000).
+
+run(Pid, Steps) ->
+	Pid ! {self(), start, Steps},
+	receive
+		{Pid, Message} ->
+			Message
+	end.
+
+stop(Pid) ->
+	Pid ! {self(), stop},
+	receive
+		{Pid, Message} ->
+			Message
+	end.
+	
+start_battle(Core, Warriors, 0) ->
+	write_core(Core),
+	io:format("Battle ended with tie: ~w warriors alive~n", [length(Warriors)]),
+	{Core, Warriors};
+	
+start_battle(Core, Warriors, Steps) ->
+	io:format("~w~n", [Warriors]),
+	case Steps rem 20 =:= 0 of
+		true ->
+			write_core(Core)
+	end,
+	io:format("Steps: ~w~n", [Steps]),
+	WNum = Steps rem length(Warriors) + 1,
+	War = lists:nth(WNum, Warriors),
+	case execute_current_instr(Core, War) of
+		{ok, NewCore} ->
+			start_battle(NewCore, Warriors, Steps - 1);
+		{dead, NewCore} ->
+			NewWarriors = delete_warrior(Warriors, WNum),
+			case length(NewWarriors) of
+				1 ->
+					write_core(Core),
+					io:format("Warrior '~w' has won the battle!~n", [lists:nth((lists:nth(1, NewWarriors))#warrior.number, core_chars())]);
+				_ ->
+					start_battle(NewCore, NewWarriors, Steps - 1)
+			end
+	end.
+	
+execute_current_instr(Core, Warrior) ->
+	WPid = Warrior#warrior.pid,
+	WPid ! {self(), execute, Core},
+	receive
+		{WPid, Status, NewCore} ->
+			{Status, NewCore}
+	end.
+	
 %% ok
 load_warrior(Pid, Filename)	->
 	Pid ! {self(), load_warrior, Filename},
 	receive
 		{Pid, Message} ->
-			Message
-	end.
+			io:format("odebrane ~w", [Message])
+	end,
+	io:format("wyszło ~w", [Pid]).
 
 %% do testow
 remove_warrior(Pid, WarriorNumber) when WarriorNumber > 0 ->
@@ -126,13 +190,14 @@ extract_instr(Cell) ->
 
 %% odkomentowac
 add_warrior(Core, Instructions) ->
+	io:format("dodawwnie~n"),
 	NewNumber = number_of_warriors(Core) + 1,
 	case NewNumber of
-		8 ->
+		9 ->
 			throw("Maximum number of warrios have been reached");
 		_ ->
 			Location = new_warrior_location(Core, length(Instructions)),
-			{add_warrior(Core, Instructions, Location, NewNumber)}%, spawn(warrior, loop, [Location])}
+			{add_warrior(Core, Instructions, Location, NewNumber), NewNumber, spawn(warrior, loop, [Location])}
 	end.
 
 replace_cell(Core, N, NewCell) ->
@@ -149,12 +214,12 @@ delete_warrior(Warriors, Number) when is_list(Warriors) ->
 delete_warrior([], _, Accum) ->
 	Accum;
 
-delete_warrior([Head = {warrior, Num, Pid} | Rest], Number, Accum) ->
-	case Num =:= Number of
+delete_warrior([Head | Rest], Number, Accum) ->
+	case Head#warrior.number =:= Number of
 		false ->
 			delete_warrior(Rest, Number, [Head | Accum]);
 		true ->
-			Pid ! {self(), kill},
+			Head#warrior.pid ! {self(), kill},
 			delete_warrior(Rest, Number, Accum)
 	end.
 
@@ -197,7 +262,8 @@ extract_warrior(Cell) ->
 %% ok
 new_warrior_location(Core, WarriorLength) ->
 	Location = random:uniform(length(Core) - WarriorLength + 1),
-	case scan_for_other_warriors(Core, 1, length(Core), 0) of
+	io:format("~w~n", [Location]),
+	case scan_for_other_warriors(Core, Location, Location + WarriorLength, 0) of
 		true ->
 			new_warrior_location(Core, WarriorLength);
 		false ->
